@@ -31,6 +31,11 @@ namespace GoodCache
                 return Id.Equals(o.Id);
             }
         }
+
+        public override int GetHashCode()
+        {
+            return 2108858624 + EqualityComparer<string>.Default.GetHashCode(Id);
+        }
     }
 
     public class AbstractCachedObject : ICacheable
@@ -48,8 +53,19 @@ namespace GoodCache
 
     public class CacheEntry<ICacheable>
     {
-        public ICacheable Value { get; }
-        public DateTime CachedOn { get; }        
+        public ICacheable Value { get; private set; }
+        public DateTime CachedOn { get; private set; }
+        
+        public void Reset()
+        {
+            CachedOn = DateTime.Now;
+        }
+
+        public void ResetTo(ICacheable cacheable)
+        {
+            Value = cacheable;
+            Reset();
+        }
 
         public CacheEntry(ICacheable o, DateTime when)
         {
@@ -82,9 +98,20 @@ namespace GoodCache
         public void AddOrUpdate(ICacheable o)
         {
             CacheEntry<ICacheable> ce = null;
-            if (Entries.TryGetValue(key, out ce))
+            if (Entries.TryGetValue(o.GetId(), out ce))
             {
-                
+                if (ce.Equals(o))
+                {
+                    ce.Reset();
+                }
+                else
+                {
+                    ce.ResetTo(o);
+                }
+            }
+            else
+            {
+                Entries.Add(o.GetId(), new CacheEntry<ICacheable>(o,DateTime.Now));
             }
         }
 
