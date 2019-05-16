@@ -188,10 +188,12 @@ namespace GoodCache
         bool ShouldRemove(T cacheable);
     }
 
-    public class StartSweepingEventArgs : EventArgs { }
+    public class StartSweepingEventArgs : EventArgs
+    {
+        public Cache<ICacheable> Cache { get; set; }
+    }
     public class CacheKeeper
-    {     
-        
+    {             
         private IKeepingStrategy KeepingStrategy { get; set; }
 
         public CacheKeeper(Cache<ICacheable> cache) : this(cache, new KeepingStrategyTimed(TimeSpan.FromSeconds(3)))
@@ -201,7 +203,13 @@ namespace GoodCache
         public CacheKeeper(Cache<ICacheable> cache, IKeepingStrategy keepingStrategy)
         {
             Cache = cache;
-            KeepingStrategy = keepingStrategy;            
+            KeepingStrategy = keepingStrategy;
+            KeepingStrategy.TimerElapsed += KeepingStrategy_TimerElapsed;
+        }
+
+        private void KeepingStrategy_TimerElapsed(object sender, StartSweepingEventArgs e)
+        {
+            e.Cache.CacheSweeper.Run();
         }
 
         Cache<ICacheable> Cache { get; set; }
@@ -227,20 +235,20 @@ namespace GoodCache
             while (!ends)
             {
                 while (stopwatch.ElapsedMilliseconds < timeSpan.TotalMilliseconds) { }
-                cache.
+                OnTimerElapsed(new StartSweepingEventArgs() { Cache = cache  }) ;
             }
         }
         
     }
 
     public abstract class KeepingStrategy : IKeepingStrategy
-    {        
+    {
         public virtual void OnTimerElapsed(StartSweepingEventArgs args)
         {
             TimerElapsed?.Invoke(this, args);
         }
 
-        public EventHandler<StartSweepingEventArgs> TimerElapsed;
+        public event EventHandler<StartSweepingEventArgs> TimerElapsed;
 
         public void Run(Cache<ICacheable> cache)
         {
@@ -251,5 +259,6 @@ namespace GoodCache
     public interface IKeepingStrategy
     {        
         void Run(Cache<ICacheable> cache);
+        event EventHandler<StartSweepingEventArgs> TimerElapsed;
     }
 }
