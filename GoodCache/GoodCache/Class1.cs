@@ -46,7 +46,7 @@ namespace GoodCache
         string GetId();
     }
 
-    public class CacheEntry<T> where T : ICacheable
+    class CacheEntry<T> where T : ICacheable
     {
         public T Value { get; private set; }
         public DateTime CachedOn { get; private set; }
@@ -73,6 +73,9 @@ namespace GoodCache
     public class Cache<T> : ICollection<T> where T : ICacheable
     {
         private Dictionary<string, CacheEntry<T>> Entries { get; }
+
+        public bool Remove(T cacheable) => Entries.Remove(cacheable.GetId());        
+
         public ICacheSweeper CacheSweeper { get; private set; }
 
         public int Count => Entries.Count();
@@ -128,9 +131,7 @@ namespace GoodCache
             {
                 AddOrUpdate(c);
             }
-        }    
-
-        bool ICollection<T>.Remove(T item) => Entries.Remove(item.GetId());
+        }            
 
         public void Add(T item)
         {

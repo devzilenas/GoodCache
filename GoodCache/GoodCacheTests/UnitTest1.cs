@@ -6,11 +6,12 @@ namespace Tests
 {
     public class Tests
     {
+        Cache<ICacheable> Cache { get; set; }
 
         private IList<ICacheable> CachedObjects(int count)
         {
             var list = new List<ICacheable>();
-            for (int i = 0; i < 10000; i++)
+            for (int i = 0; i < count; i++)
             {
                 var co = new CachedObject();
                 list.Add(co);
@@ -21,26 +22,25 @@ namespace Tests
         [SetUp]
         public void Setup()
         {
-
+            Cache = new Cache<ICacheable>();
         }
 
         [Test]
         public void TestGet()
         {
-            var gc = new Cache<CachedObject>();
-            
-            var ck = new CacheKeeper(gc,);
+            var cacheKeeper = new CacheKeeper(Cache);
+                        
             var list = CachedObjects(10000);
 
             foreach(var item in list)
             {
-                gc.AddOrUpdate(item);
+                Cache.AddOrUpdate(item);
             }
 
             for (int i = 0; i< 10;i++)
             {
                 var item = list[i];
-                var co =  (CachedObject)gc.Get(item.GetId()).Value;
+                var co = (CachedObject)Cache.Get(item.GetId());
                 Assert.That(item, Is.EqualTo(co));
             }
         }
@@ -48,29 +48,26 @@ namespace Tests
         [Test]
         public void TestAddOrUpdate()
         {
-            var gc = new Cache();
             var co = new CachedObject();
-            gc.AddOrUpdate(co);
-            Assert.That(gc, Is.Not.Empty);
-            Assert.That(gc, Has.Exactly(1).Items);
+            Cache.AddOrUpdate(co);
+            Assert.That(Cache, Is.Not.Empty);
+            Assert.That(Cache, Has.Exactly(1).Items);
         }
 
         [Test]
         public void TestCreateCache()
-        {
-            var gc = new Cache();
-            Assert.That(gc, Is.Empty);
+        {            
+            Assert.That(Cache, Is.Empty);
         }
 
         [Test]
         public void TestRemove()
-        {
-            var gc = new Cache();
+        {            
             var list = CachedObjects(10000);
-            gc.AddOrUpdate(list);
+            Cache.AddOrUpdate(list);
             for (int i = 0; i < list.Count; i++)
             {
-                gc.Remove(list[i]);
+                Cache.Remove(list[i]);
             }
         }
     }
