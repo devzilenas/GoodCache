@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace GoodCache
@@ -196,69 +197,58 @@ namespace GoodCache
     {             
         private IKeepingStrategy KeepingStrategy { get; set; }
 
-        public CacheKeeper(Cache<ICacheable> cache) : this(cache, new KeepingStrategyTimed(TimeSpan.FromSeconds(3)))
+        public CacheKeeper(Cache<ICacheable> cache) : this(new KeepingStrategyTimed(cache,TimeSpan.FromSeconds(3)))
         {
         }
 
-        public CacheKeeper(Cache<ICacheable> cache, IKeepingStrategy keepingStrategy)
-        {
-            Cache = cache;
+        public CacheKeeper(IKeepingStrategy keepingStrategy)
+        {         
             KeepingStrategy = keepingStrategy;
-            KeepingStrategy.TimerElapsed += KeepingStrategy_TimerElapsed;
+            KeepingStrategy.OnEvent += KeepingStrategy_OnEvent1;            
         }
 
-        private void KeepingStrategy_TimerElapsed(object sender, StartSweepingEventArgs e)
-        {
-            e.Cache.CacheSweeper.Run();
-        }
-
-        Cache<ICacheable> Cache { get; set; }
-        public void Run()
-        {
-            KeepingStrategy.Run(Cache);
-        }
+        private void KeepingStrategy_OnEvent1(Cache<ICacheable> cache)
+        {         
+            cache.CacheSweeper.Run();
+        }             
     }
 
-    internal class KeepingStrategyTimed : KeepingStrategy
+    public delegate void OnEventHandler(Cache<ICacheable> cacheables); 
+
+    public class KeepingStrategyTimed : IKeepingStrategy
     {
         private TimeSpan timeSpan;
+        private Cache<ICacheable> Cache { get; set; }
+        private System.Timers.Timer Timer { get; set; }
 
-        public KeepingStrategyTimed(TimeSpan timeSpan)
+        public event OnEventHandler OnEvent;
+
+        public KeepingStrategyTimed(Cache<ICacheable> cache, TimeSpan timeSpan)
         {
             this.timeSpan = timeSpan;
+            Cache = cache;
+            SetTimer();
+            Timer.Start();
         }
 
-        public void Run(Cache<ICacheable> cache)
+        private void SetTimer()
         {
-            var stopwatch = new Stopwatch();
-            var ends = false;
-            while (!ends)
+            Timer = new System.Timers.Timer(timeSpan.TotalMilliseconds);
+            Timer.Elapsed += Timer_Elapsed;
+            Timer.Enabled = true;            
+        }
+
+        private void Timer_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
+        {
+            if (OnEvent != null)
             {
-                while (stopwatch.ElapsedMilliseconds < timeSpan.TotalMilliseconds) { }
-                OnTimerElapsed(new StartSweepingEventArgs() { Cache = cache  }) ;
-            }
-        }
-        
-    }
-
-    public abstract class KeepingStrategy : IKeepingStrategy
-    {
-        public virtual void OnTimerElapsed(StartSweepingEventArgs args)
-        {
-            TimerElapsed?.Invoke(this, args);
-        }
-
-        public event EventHandler<StartSweepingEventArgs> TimerElapsed;
-
-        public void Run(Cache<ICacheable> cache)
-        {
-            throw new NotImplementedException();
-        }
+                OnEvent?.Invoke(Cache);
+            }            
+        }        
     }
 
     public interface IKeepingStrategy
-    {        
-        void Run(Cache<ICacheable> cache);
-        event EventHandler<StartSweepingEventArgs> TimerElapsed;
+    {
+        event OnEventHandler OnEvent;
     }
 }
