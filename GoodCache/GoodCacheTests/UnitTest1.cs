@@ -6,6 +6,37 @@ using System;
 
 namespace Tests
 {
+    public class CachedObject : ICacheable
+    {
+        private string Id { get; }
+
+        public CachedObject()
+        {
+            Id = Guid.NewGuid().ToString();
+        }
+        public virtual string GetId()
+        {
+            return Id;
+        }
+
+        public override bool Equals(object obj)
+        {
+            if (obj == null || GetType() != obj.GetType())
+            {
+                return false;
+            }
+            else
+            {
+                var o = (CachedObject)obj;
+                return Id.Equals(o.Id);
+            }
+        }
+
+        public override int GetHashCode()
+        {
+            return 2108858624 + EqualityComparer<string>.Default.GetHashCode(Id);
+        }
+    }
     public class Tests
     {
         Cache<ICacheable> Cache { get; set; }
@@ -66,7 +97,11 @@ namespace Tests
         public void TestRemove()
         {            
             var list = CachedObjects(10000);
-            Cache.AddOrUpdate(list);
+            foreach (var item in list)
+            {
+                Cache.AddOrUpdate(item);
+            }
+            
             for (int i = 0; i < list.Count; i++)
             {
                 Cache.Remove(list[i]);
@@ -76,8 +111,7 @@ namespace Tests
         [Test]
         public void TestSweepingFull()
         {            
-            var cacheKeeper = new CacheKeeper(Cache);
-            Cache.CacheKeeper = cacheKeeper;
+            var cacheKeeper = new CacheKeeper(Cache);            
             Cache.RemovalStrategy = new RemovalStrategy(TimeSpan.FromSeconds(11));
 
             var list = CachedObjects(10000);
@@ -95,8 +129,7 @@ namespace Tests
         [Test]
         public void TestSweepingEmpty()
         {
-            var cacheKeeper = new CacheKeeper(Cache);
-            Cache.CacheKeeper = cacheKeeper;
+            var cacheKeeper = new CacheKeeper(Cache);            
             Cache.RemovalStrategy = new RemovalStrategy(TimeSpan.FromSeconds(1));
 
             var list = CachedObjects(10000);

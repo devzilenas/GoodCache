@@ -9,44 +9,12 @@ using System.Threading.Tasks;
 
 namespace GoodCache
 {
-    public class CachedObject : ICacheable
-    {
-        private string Id { get; }
-
-        public CachedObject()
-        {
-            Id = Guid.NewGuid().ToString();
-        }
-        public virtual string GetId()
-        {
-            return Id;
-        }
-        
-        public override bool Equals(object obj)
-        {            
-            if (obj == null || GetType() != obj.GetType())
-            {
-                return false;
-            }
-            else
-            {
-                var o = (CachedObject)obj;
-                return Id.Equals(o.Id);
-            }
-        }
-
-        public override int GetHashCode()
-        {
-            return 2108858624 + EqualityComparer<string>.Default.GetHashCode(Id);
-        }
-    }
-
     public interface ICacheable
     {
         string GetId();
     }
 
-    public class CacheEntry<T> where T : ICacheable
+    public class CacheEntry<T> where T : ICacheable 
     {
         public T Value { get; private set; }
         public DateTime CachedOn { get; private set; }
@@ -70,13 +38,11 @@ namespace GoodCache
 
         public string GetId() => Value.GetId();
     }
-    public class Cache<T> where T : ICacheable
+    public class Cache<T> : ICache<T> where T : ICacheable
     {
         private Dictionary<string, CacheEntry<T>> Entries { get; }
 
-        public IRemovalStrategy RemovalStrategy { get; set; }
-        
-        public ICacheKeeper CacheKeeper { get; set; }
+        public IRemovalStrategy RemovalStrategy { get; set; }               
 
         public void SweeperRun()
         {
@@ -102,7 +68,9 @@ namespace GoodCache
                 return RemovalStrategy.ShouldRemove(this, cacheEntry);
             }
             else
-            { return false; }
+            {
+                return false;
+            }
         }
 
         public bool Remove(T cacheable) => Entries.Remove(cacheable.GetId());         
@@ -150,23 +118,22 @@ namespace GoodCache
             {
                 Entries.Add(o.GetId(), new CacheEntry<T>(o,DateTime.Now));
             }
-        } 
-
-        public void AddOrUpdate(ICollection<T> cacheables)
-        {
-            foreach (var c in cacheables)
-            {
-                AddOrUpdate(c);
-            }
-        }                  
-
-        public bool Contains(T item) => Get(item.GetId()) != null;
+        }  
         
         public Cache()
         {
             Entries = new Dictionary<string, CacheEntry<T>>();
         }
     }
+
+    public interface ICache<T> where T : ICacheable
+    {
+        void AddOrUpdate(T o);
+        T Get(string key);
+        bool ShouldRemove(CacheEntry<T> cacheEntry);
+        IRemovalStrategy RemovalStrategy {get;set;}
+    }
+
     public class RemovalStrategy : IRemovalStrategy
     {
         TimeSpan TimeSpan {get;set;}
@@ -206,7 +173,7 @@ namespace GoodCache
         private void KeepingStrategy_OnEvent1(Cache<ICacheable> cache)
         {
             System.Diagnostics.Debug.WriteLine("CacheKeeper Event1");
-            lock (cache)
+            lock (KeepingStrategy)
             {
                 System.Diagnostics.Debug.WriteLine("CacheKeeper running sweeper.");
                 cache.SweeperRun();
