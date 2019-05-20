@@ -97,7 +97,12 @@ namespace GoodCache
 
         public bool ShouldRemove(CacheEntry<T> cacheEntry)
         {
-            return RemovalStrategy.ShouldRemove(this,cacheEntry);
+            if (RemovalStrategy != null)
+            {
+                return RemovalStrategy.ShouldRemove(this, cacheEntry);
+            }
+            else
+            { return false; }
         }
 
         public bool Remove(T cacheable) => Entries.Remove(cacheable.GetId());         
@@ -153,19 +158,7 @@ namespace GoodCache
             {
                 AddOrUpdate(c);
             }
-        }            
-
-        public void Add(T item)
-        {
-            if (Contains(item))
-            {
-                throw new InvalidOperationException("Already exists");
-            }
-            else
-            {
-                AddOrUpdate(item);
-            }
-        }      
+        }                  
 
         public bool Contains(T item) => Get(item.GetId()) != null;
         
@@ -194,10 +187,6 @@ namespace GoodCache
 
     public interface ICacheKeeper
     {
-    }
-    public interface ISweepingStrategy<T>
-    {
-        bool ShouldRemove(T cacheable);
     }
 
     public class CacheKeeper : ICacheKeeper
