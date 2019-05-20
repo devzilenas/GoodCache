@@ -46,7 +46,7 @@ namespace GoodCache
         string GetId();
     }
 
-    class CacheEntry<T> where T : ICacheable
+    public class CacheEntry<T> where T : ICacheable
     {
         public T Value { get; private set; }
         public DateTime CachedOn { get; private set; }
@@ -70,18 +70,40 @@ namespace GoodCache
 
         public string GetId() => Value.GetId();
     }
-    public class Cache<T> : ICollection<T> where T : ICacheable
+    public class Cache<T> where T : ICacheable
     {
         private Dictionary<string, CacheEntry<T>> Entries { get; }
 
-        public bool Remove(T cacheable) => Entries.Remove(cacheable.GetId());        
+        public IRemovalStrategy RemovalStrategy { get; set; }
+        
+        public ICacheKeeper CacheKeeper { get; set; }
 
-        public ICacheSweeper CacheSweeper { get; private set; }
+        public void SweeperRun()
+        {
+            System.Diagnostics.Debug.WriteLine("CacheSweep run");
+            var r = new List<string>();
+            foreach (var key in Entries.Keys)
+            {                
+                if (ShouldRemove(Entries[key]))
+                {
+                    r.Add(key);
+                }
+            }
+            foreach(var s in r)
+            {
+                Entries.Remove(s);
+            }
+        }
+
+        public bool ShouldRemove(CacheEntry<T> cacheEntry)
+        {
+            return RemovalStrategy.ShouldRemove(this,cacheEntry);
+        }
+
+        public bool Remove(T cacheable) => Entries.Remove(cacheable.GetId());         
 
         public int Count => Entries.Count();
-
-        public bool IsReadOnly => ((ICollection<T>)Entries).IsReadOnly;        
-
+        
         public T Get(string key)
         {
             if (Entries.TryGetValue(key, out CacheEntry<T> cacheEntry))
@@ -143,58 +165,42 @@ namespace GoodCache
             {
                 AddOrUpdate(item);
             }
-        }
-
-        public void Clear() => Entries.Clear();        
+        }      
 
         public bool Contains(T item) => Get(item.GetId()) != null;
-
-        IEnumerator IEnumerable.GetEnumerator() => ((IEnumerable)Entries).GetEnumerator();
-        public void CopyTo(T[] array, int arrayIndex) => ((ICollection)Entries).CopyTo(array, arrayIndex);
-
-        public IEnumerator<T> GetEnumerator() => ((IEnumerable<T>)Entries).GetEnumerator();
-
+        
         public Cache()
         {
             Entries = new Dictionary<string, CacheEntry<T>>();
         }
     }
-
-    public interface ICacheSweeper
+    public class RemovalStrategy : IRemovalStrategy
     {
-        void Run();
-    }
-
-    public class CacheSweeper<T> : ICacheSweeper
-    {
-        public ISweepingStrategy<T> SweepingStrategy { get; private set; }
-        public ICollection<T> SweepOver { get; private set; }
-        public CacheSweeper(ICollection<T> sweepOver)
+        TimeSpan TimeSpan {get;set;}
+        public RemovalStrategy(TimeSpan timeSpan)
         {
-            SweepOver = sweepOver;
+            TimeSpan = timeSpan;
         }
-        public void Run()
+
+        public bool ShouldRemove<T>(Cache<T> cache, CacheEntry<T> cacheEntry) where T : ICacheable
         {
-            foreach (T item in SweepOver)
-            {
-                if (SweepingStrategy.ShouldRemove(item))
-                {
-                    SweepOver.Remove(item);
-                }
-            }            
+            return DateTime.Now.Subtract(cacheEntry.CachedOn) > TimeSpan;
         }
     }
+    public interface IRemovalStrategy
+    {
+        bool ShouldRemove<T>(Cache<T> cache, CacheEntry<T> cacheEntry) where T : ICacheable;
+    }
 
+    public interface ICacheKeeper
+    {
+    }
     public interface ISweepingStrategy<T>
     {
         bool ShouldRemove(T cacheable);
     }
 
-    public class StartSweepingEventArgs : EventArgs
-    {
-        public Cache<ICacheable> Cache { get; set; }
-    }
-    public class CacheKeeper
+    public class CacheKeeper : ICacheKeeper
     {             
         private IKeepingStrategy KeepingStrategy { get; set; }
 
@@ -209,8 +215,13 @@ namespace GoodCache
         }
 
         private void KeepingStrategy_OnEvent1(Cache<ICacheable> cache)
-        {         
-            cache.CacheSweeper.Run();
+        {
+            System.Diagnostics.Debug.WriteLine("CacheKeeper Event1");
+            lock (cache)
+            {
+                System.Diagnostics.Debug.WriteLine("CacheKeeper running sweeper.");
+                cache.SweeperRun();
+            }
         }             
     }
 
@@ -226,6 +237,7 @@ namespace GoodCache
 
         public KeepingStrategyTimed(Cache<ICacheable> cache, TimeSpan timeSpan)
         {
+            System.Diagnostics.Debug.WriteLine("Starting timed strategy.");
             this.timeSpan = timeSpan;
             Cache = cache;
             SetTimer();
@@ -243,7 +255,7 @@ namespace GoodCache
         {
             if (OnEvent != null)
             {
-                OnEvent?.Invoke(Cache);
+                OnEvent?.Invoke(Cache);                
             }            
         }        
     }

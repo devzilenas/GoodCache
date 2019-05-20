@@ -1,6 +1,8 @@
 using NUnit.Framework;
 using GoodCache;
 using System.Collections.Generic;
+using System.Threading;
+using System;
 
 namespace Tests
 {
@@ -35,7 +37,7 @@ namespace Tests
             foreach(var item in list)
             {
                 Cache.AddOrUpdate(item);
-            }
+            }            
 
             for (int i = 0; i< 10;i++)
             {
@@ -50,14 +52,14 @@ namespace Tests
         {
             var co = new CachedObject();
             Cache.AddOrUpdate(co);
-            Assert.That(Cache, Is.Not.Empty);
-            Assert.That(Cache, Has.Exactly(1).Items);
+            Assert.That(Cache.Count, Is.Not.Zero);
+            Assert.That(Cache.Count, Is.EqualTo(1));
         }
 
         [Test]
         public void TestCreateCache()
         {            
-            Assert.That(Cache, Is.Empty);
+            Assert.That(Cache.Count, Is.Zero);
         }
 
         [Test]
@@ -69,6 +71,44 @@ namespace Tests
             {
                 Cache.Remove(list[i]);
             }
+        }
+
+        [Test]
+        public void TestSweepingFull()
+        {            
+            var cacheKeeper = new CacheKeeper(Cache);
+            Cache.CacheKeeper = cacheKeeper;
+            Cache.RemovalStrategy = new RemovalStrategy(TimeSpan.FromSeconds(11));
+
+            var list = CachedObjects(10000);
+
+            foreach (var item in list)
+            {
+                Cache.AddOrUpdate(item);
+            }
+
+            Thread.Sleep(10000);
+
+            Assert.That(Cache.Count, Is.EqualTo(10000));
+        }
+
+        [Test]
+        public void TestSweepingEmpty()
+        {
+            var cacheKeeper = new CacheKeeper(Cache);
+            Cache.CacheKeeper = cacheKeeper;
+            Cache.RemovalStrategy = new RemovalStrategy(TimeSpan.FromSeconds(1));
+
+            var list = CachedObjects(10000);
+
+            foreach (var item in list)
+            {
+                Cache.AddOrUpdate(item);
+            }
+
+            Thread.Sleep(10000);
+
+            Assert.That(Cache.Count, Is.EqualTo(0));
         }
     }
 }
